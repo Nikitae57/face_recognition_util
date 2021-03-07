@@ -1,6 +1,5 @@
 import argparse
 import os
-import time
 from pathlib import Path
 from joblib import Parallel, delayed
 import numpy as np
@@ -13,6 +12,8 @@ tf.get_logger().setLevel('ERROR')
 from mtcnn.mtcnn import MTCNN
 from tensorflow.python.util import deprecation
 deprecation._PRINT_DEPRECATION_WARNINGS = False
+
+import util
 
 
 def parse_args():
@@ -70,23 +71,6 @@ def cut_face_from_img(img_array: np.ndarray, face_coords, target_size, padding_f
     return np.asarray(thumb)
 
 
-def get_images_from_dir(root_dir, extensions=('.png', '.jpg', '.JPEG')):
-    img_paths = []
-
-    for filename in os.listdir(root_dir):
-        possible_dir = os.path.join(root_dir, filename)
-        if os.path.isdir(possible_dir):
-            img_paths.extend(get_images_from_dir(possible_dir))
-
-        _, file_extension = os.path.splitext(filename)
-        if file_extension not in extensions:
-            continue
-
-        img_paths.append(os.path.join(root_dir, filename))
-
-    return img_paths
-
-
 def optimize_img(root_dir, output_dir, img_path, target_size=(224, 224), face_presence_threshold=0.9):
     try:
         face_detector = MTCNN()
@@ -120,7 +104,7 @@ def optimize_faces_dataset(root_dir, output_dir, img_paths, target_size=(224, 22
 
 def main():
     args = parse_args()
-    img_paths = get_images_from_dir(args.input_dir, args.extensions)
+    img_paths = util.get_images_from_dir(args.input_dir, args.extensions)
     optimize_faces_dataset(
         root_dir=args.input_dir,
         output_dir=args.output_dir,
