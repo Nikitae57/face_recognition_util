@@ -5,6 +5,7 @@
 
 datasets
 labels
+.DS_Store
 
 .idea
 # User-specific stuff
