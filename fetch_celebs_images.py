@@ -11,7 +11,9 @@ from PIL import Image
 import io
 import hashlib
 
-DRIVER_PATH = '/Users/evdokimov_na/projects/other/chromedriver'
+from selenium.webdriver.common.by import By
+
+DRIVER_PATH = '/home/evdokimov_na/Documents/University/face_recognition_util/chromedriver'
 
 
 def fetch_image_urls(key_phrase: str, max_links_to_fetch: int, web_driver: webdriver, sleep_between_interactions: int = 1):
@@ -31,7 +33,7 @@ def fetch_image_urls(key_phrase: str, max_links_to_fetch: int, web_driver: webdr
         scroll_to_end(web_driver)
 
         # get all image thumbnail results
-        thumbnail_results = web_driver.find_elements_by_css_selector("img.Q4LuWd")
+        thumbnail_results = web_driver.find_elements(By.CSS_SELECTOR, "img.Q4LuWd")
         number_results = len(thumbnail_results)
 
         print(f"Found: {number_results} search results. Extracting links from {results_start}:{number_results}")
@@ -45,7 +47,7 @@ def fetch_image_urls(key_phrase: str, max_links_to_fetch: int, web_driver: webdr
                 continue
 
             # extract image urls
-            actual_images = web_driver.find_elements_by_css_selector('img.n3VNCb')
+            actual_images = web_driver.find_elements(By.CSS_SELECTOR, 'img.n3VNCb')
             for actual_image in actual_images:
                 if actual_image.get_attribute('src') and 'http' in actual_image.get_attribute('src'):
                     image_urls.add(actual_image.get_attribute('src'))
@@ -58,7 +60,7 @@ def fetch_image_urls(key_phrase: str, max_links_to_fetch: int, web_driver: webdr
         else:
             print("Found:", len(image_urls), "image links, looking for more ...")
             time.sleep(30)
-            load_more_button = web_driver.find_element_by_css_selector(".mye4qd")
+            load_more_button = web_driver.find_element(By.CSS_SELECTOR, ".mye4qd")
             if load_more_button:
                 web_driver.execute_script("document.querySelector('.mye4qd').click();")
 
@@ -110,20 +112,27 @@ def assert_output_dir_is_empty(output_dir: str):
         raise IOError(f'Directory is not empty: {output_dir}')
 
 
-def fetch_images_for_key_phrases(key_phrases: [str], output_dir: str, num_images_per_key_phrase: int):
-    assert_output_dir_is_empty(output_dir)
+def fetch_images_for_key_phrase(key_phrase: str, output_dir: str, num_images_per_key_phrase: int):
+    if os.path.exists(os.path.join(output_dir, key_phrase)):
+        return
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    wd = webdriver.Chrome(executable_path=DRIVER_PATH)
+    wd.get('https://google.com')
+    search_box = wd.find_element(By.CSS_SELECTOR, 'input.gLFyf')
+    search_box.send_keys(key_phrase)
+    links = fetch_image_urls(key_phrase, num_images_per_key_phrase, wd)
+    for i in links:
+        persist_image(output_dir, key_phrase, i)
+    wd.quit()
 
-    for key_phrase in key_phrases:
-        wd = webdriver.Chrome(executable_path=DRIVER_PATH)
-        wd.get('https://google.com')
-        search_box = wd.find_element_by_css_selector('input.gLFyf')
-        search_box.send_keys(key_phrase)
-        links = fetch_image_urls(key_phrase, num_images_per_key_phrase, wd)
-        # images_path = '/Users/anand/Desktop/contri/images'  #enter your desired image path
-        for i in links:
-            persist_image(output_dir, key_phrase, i)
-        wd.quit()
-    # Parallel(n_jobs=12)(delayed(response.download)(key_phrase, num_images_per_key_phrase, allowed_extensions, output_dir) for key_phrase in key_phrases)
+
+def fetch_images_for_key_phrases(key_phrases: [str], output_dir: str, num_images_per_key_phrase: int):
+    Parallel(n_jobs=10)(delayed(fetch_images_for_key_phrase)(
+            key_phrase, output_dir, num_images_per_key_phrase
+    ) for key_phrase in key_phrases)
 
 
 def parse_key_phrases_file(path: str) -> [str]:

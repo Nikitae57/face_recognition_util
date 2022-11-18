@@ -1,16 +1,13 @@
 import argparse
 import os
-from time import time
 
 import util
-import torch
-torch.set_num_threads(12)
 
 import numpy as np
 from pathlib import Path
 from PIL import Image
-from joblib import Parallel, delayed
 from img2vec_pytorch import Img2Vec
+from joblib import Parallel, delayed
 
 
 def parse_args():
@@ -26,19 +23,17 @@ def parse_args():
 
 def _preprocess_output_dir(output_dir: str):
     os.makedirs(output_dir, exist_ok=True)
-    if len(os.listdir(output_dir)) != 0:
-        raise ValueError(f'Directory is not empty: {output_dir}')
 
 
 def _process_img(root_dir, output_dir, img_path):
-    vectorizer = Img2Vec()
-    image = Image.open(img_path)
-    t = time()
-    vector = vectorizer.get_vec(image)
-    t2 = (time() - t) * 1000
-    print(t2)
-    # save
     dst_path = img_path.replace(root_dir, output_dir, 1)
+    if os.path.exists(dst_path):
+        return
+
+    image = Image.open(img_path)
+    vectorizer = Img2Vec(cuda=True)
+    vector = vectorizer.get_vec(image)
+    # save
     os.makedirs(str(Path(dst_path).parent), exist_ok=True)
     np.save(dst_path, vector)
 
@@ -47,7 +42,14 @@ def vectorize_dataset(img_root_dir, output_dir):
     _preprocess_output_dir(output_dir)
 
     img_paths = util.get_images_from_dir(img_root_dir)
-    Parallel(n_jobs=12)(delayed(_process_img)(img_root_dir, output_dir, img_path) for img_path in img_paths)
+    paths = []
+    for img_path in img_paths:
+        dst_path = img_path.replace(img_root_dir, output_dir, 1)
+        if not os.path.exists(dst_path + '.npy'):
+            # print(dst_path)
+            paths.append(img_path)
+
+    Parallel(n_jobs=12)(delayed(_process_img)(img_root_dir, output_dir, img_path) for img_path in paths)
 
 
 def main():
